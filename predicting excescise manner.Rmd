@@ -1,0 +1,75 @@
+---
+title: "Predicting exercise manner"
+author: "Marnick Huijsman"
+date: "Tuesday, May 19, 2015"
+output: html_document
+---
+
+# Summary
+The goal of this analysis is to see if we can predict if an exercise is well performed, just be the data that is collected from sensors that are attached to the person that is executing the exercise. We do this be performing some exploratory data analysis, train the model en do cross validation to see how well it performs.
+
+```{r, warning=FALSE,message=FALSE}
+# Load required packages
+require(caret)
+
+
+# Read the training data
+pml <- read.csv("pml-training.csv", stringsAsFactors=FALSE)
+pml$classe <- as.factor(pml$classe);
+pml$new_window <- as.factor(pml$new_window)
+
+# We create a train and testset to test our results against
+set.seed(1234)
+inTrain <- createDataPartition(y = pml$classe, p=0.75, list=FALSE);
+train <- pml[inTrain,];
+test <- pml[-inTrain,];
+
+```
+# Exploratory data analisys
+We first do some exploratory data analysis of the data. We do this on the
+training set. The first 7 columns are no predictors. The first variable we can use as a
+predictor is column 8 with roll_belt.
+```{r}
+str(train[,1:10])
+````
+A lot of rows have NA's or have empty strings. These are only measured with 
+every new window (indicated by new_window=yes). 
+```{r}
+train_na <- is.na(train)
+colsum_na <- colSums(train_na)
+table(colsum_na)
+measure_new_window <- which(colsum_na==max(colsum_na))
+measure_new_window <- c(measure_new_window,
+        which(train[which(train$new_window=="no")[1],]==""))
+# Number of columns only measured every new window
+length(measure_new_window)
+```
+
+We will first try to predict with the other variables.
+By looking at the pairs plots we can see that only a couple of variables
+really distinguish the different type of classes.
+These variables are: 
+
+* roll_forearm
+* pitch_forearm
+* yaw_forearm
+* roll_arm
+* pitch_arm
+
+# Model training
+We train the model with the selected variables using Random Forrest, a model that usually performances well in classification.
+```{r, warning=FALSE,message=FALSE}
+modelfit <- train(classe~ roll_forearm + pitch_forearm + yaw_forearm + roll_arm
+        + pitch_arm, method="rf", data=train)
+modelfit
+```
+The model has an accuracy of nearly 85%. 
+
+# Cross validation
+Let's have a look at the out-of-sample error by testing the model against the data we have put aside in a separate test set. We expect the out-of-sample error to be be bigger than 15%, because the 85% is tested with in-sample prediction.
+```{r}
+testpredict <- predict(modelfit, newdata=test)
+table(test$classe,testpredict)
+sum(test$classe==testpredict)/length(testpredict)
+```
+The error is about 12%. Surprisingly this is less than the in-sample-error.
